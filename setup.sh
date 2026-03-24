@@ -10,7 +10,7 @@ if grep -qi "microsoft" /proc/sys/kernel/osrelease 2>/dev/null && ! grep -q "WSL
     sudo mkdir /var/lib/dpkg/info
     sudo apt-get update
     sudo apt-get -f install
-    sudo mv /var/lib/dpkg/info/* /var/lib/dpkg/info_silent
+    sudo bash -c 'mv /var/lib/dpkg/info/* /var/lib/dpkg/info_silent/ 2>/dev/null || true'
     sudo rm -rf /var/lib/dpkg/info
     sudo mv /var/lib/dpkg/info_silent /var/lib/dpkg/info
 fi
