@@ -24,8 +24,6 @@ sudo apt upgrade -y
 # Setup local config directory
 mkdir -p ~/.config
 
-# Setup bashrc
-
 # Setup local binary directory
 mkdir -p ~/.local/bin
 if ! grep -q '.local/bin' ~/.bashrc; then

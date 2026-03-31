@@ -75,3 +75,22 @@ exec bash
 ```
 
 `exec bash` reloads the shell so that newly installed tools and updated environment variables (e.g. from `.bashrc`) take effect immediately.
+
+
+### (Optional) Exclude Windows PATH from WSL
+
+By default, WSL appends the Windows `PATH` to the Linux `PATH`. To disable this, add the following to `/etc/wsl.conf`:
+
+```bash
+sudo tee -a /etc/wsl.conf <<'EOF'
+[interop]
+appendWindowsPath = false
+EOF
+```
+
+Then restart WSL from PowerShell:
+
+```pwsh
+wsl --shutdown
+wsl
+```
