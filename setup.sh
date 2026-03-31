@@ -107,6 +107,17 @@ fi
 # Setup tmux config
 [ -d ~/.config/tmux ] || git clone --depth=1 --recursive https://github.com/TaegyunHa/tmux.git ~/.config/tmux
 
+# Install zoxide
+if ! command -v zoxide &>/dev/null; then
+    echo "installing zoxide..."
+    sudo apt-get install -y zoxide
+else
+    echo "zoxide already installed, skipping."
+fi
+if ! grep -q 'zoxide init' ~/.bashrc; then
+    echo 'eval "$(zoxide init bash)"' >> ~/.bashrc
+fi
+
 # Install claude
 echo "installing claude..."
 curl -fsSL https://claude.ai/install.sh | bash
