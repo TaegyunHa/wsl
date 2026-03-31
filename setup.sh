@@ -51,7 +51,7 @@ if ! grep -q 'PYENV_ROOT' ~/.bashrc; then
     echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
     echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
     # Manual init preferred — source pyenv init selectively as needed
-    # echo 'eval "$(pyenv init - bash)"' >> ~/.bashrc
+    echo 'eval "$(pyenv init - bash)"' >> ~/.bashrc
 fi
 # Setup pyenv
 export PYENV_ROOT="$HOME/.pyenv"
@@ -117,8 +117,12 @@ if ! grep -q 'zoxide init' ~/.bashrc; then
 fi
 
 # Install claude
-echo "installing claude..."
-curl -fsSL https://claude.ai/install.sh | bash
+if ! command -v claude &>/dev/null; then
+    echo "installing claude..."
+    curl -fsSL https://claude.ai/install.sh | bash
+else
+    echo "claude already installed, skipping."
+fi
 
 # Cleanup temp files
 rm -f /tmp/ripgrep.deb /tmp/nvim-linux-x86_64.tar.gz
