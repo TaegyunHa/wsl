@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Must be run with sudo (or as root via su) so apt commands work.
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: run this script with sudo: sudo $0" >&2
+    exit 1
+fi
+
+# When invoked via "sudo setup.sh", $SUDO_USER holds the original username.
+# Fall back to $USER when run directly as root.
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+
 # WSL1 specific option to prevent apt upgrade fail
 if grep -qi "microsoft" /proc/sys/kernel/osrelease 2>/dev/null && ! grep -q "WSL2" /proc/sys/kernel/osrelease 2>/dev/null; then
     echo "WSL1 detected, applying systemd workaround..."
@@ -22,12 +33,12 @@ sudo apt update || true
 sudo apt upgrade -y
 
 # Setup local config directory
-mkdir -p ~/.config
+sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.config"
 
 # Setup local binary directory
-mkdir -p ~/.local/bin
-if ! grep -q '.local/bin' ~/.bashrc; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.local/bin"
+if ! grep -q '\.local/bin' "$REAL_HOME/.bashrc"; then
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$REAL_HOME/.bashrc"
 fi
 
 # Setup C++
@@ -41,27 +52,30 @@ sudo apt install -y curl git tmux libssl-dev libbz2-dev libffi-dev zlib1g-dev \
     libreadline-dev libsqlite3-dev liblzma-dev tk-dev unzip wget
 
 # Install pyenv
-echo "installing pyenv..."
-if [ ! -d "$HOME/.pyenv" ]; then
-    curl https://pyenv.run | bash
+if [ ! -d "$REAL_HOME/.pyenv" ]; then
+    echo "installing pyenv..."
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" bash -c 'curl -fsSL https://pyenv.run | bash'
 else
     echo "pyenv already installed, skipping."
 fi
-if ! grep -q 'PYENV_ROOT' ~/.bashrc; then
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
-    echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
-    # Manual init preferred — source pyenv init selectively as needed
-    echo 'eval "$(pyenv init - bash)"' >> ~/.bashrc
+if ! grep -q 'PYENV_ROOT' "$REAL_HOME/.bashrc"; then
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> "$REAL_HOME/.bashrc"
+    echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> "$REAL_HOME/.bashrc"
+    echo 'eval "$(pyenv init - --no-rehash)"' >> "$REAL_HOME/.bashrc"
 fi
-# Setup pyenv
-export PYENV_ROOT="$HOME/.pyenv"
+export PYENV_ROOT="$REAL_HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
-pyenv install -s 3.13
-pyenv global 3.13
+sudo -u "$REAL_USER" env PYENV_ROOT="$REAL_HOME/.pyenv" PATH="$REAL_HOME/.pyenv/bin:$PATH" pyenv install -s 3.13
+sudo -u "$REAL_USER" env PYENV_ROOT="$REAL_HOME/.pyenv" PATH="$REAL_HOME/.pyenv/bin:$PATH" pyenv global 3.13
+pyenv rehash
 
 # Install uv
-echo "installing uv..."
-curl -LsSf https://astral.sh/uv/install.sh | sh
+if [ ! -f "$REAL_HOME/.local/bin/uv" ]; then
+    echo "installing uv..."
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" sh -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+else
+    echo "uv already installed, skipping."
+fi
 
 # Install ripgrep
 RG_VERSION="14.1.1"
@@ -76,11 +90,22 @@ fi
 # Install fd
 echo "installing fd-find..."
 sudo apt-get install -y fd-find
-ln -sf "$(which fdfind)" ~/.local/bin/fd
+ln -sf "$(which fdfind)" "$REAL_HOME/.local/bin/fd"
 
 # Install tree
 echo "installing tree..."
 sudo apt-get install -y tree
+
+# Install zoxide
+if [ ! -f "$REAL_HOME/.local/bin/zoxide" ]; then
+    echo "installing zoxide..."
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" sh -c 'curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh'
+else
+    echo "zoxide already installed, skipping."
+fi
+if ! grep -q 'zoxide init bash' "$REAL_HOME/.bashrc"; then
+    echo 'eval "$(zoxide init bash)"' >> "$REAL_HOME/.bashrc"
+fi
 
 # Install neovim
 if ! command -v nvim &>/dev/null; then
@@ -92,34 +117,23 @@ if ! command -v nvim &>/dev/null; then
 else
     echo "neovim already installed, skipping."
 fi
-if ! grep -q 'alias vim=nvim' ~/.bashrc; then
-    echo 'alias vim=nvim' >> ~/.bashrc
+if ! grep -q 'alias vim=nvim' "$REAL_HOME/.bashrc"; then
+    echo 'alias vim=nvim' >> "$REAL_HOME/.bashrc"
 fi
-if ! grep -q 'alias code=' ~/.bashrc; then
-    echo "alias code='/mnt/c/Users/taegyun.ha/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code'" >> ~/.bashrc
+if ! grep -q 'alias code=' "$REAL_HOME/.bashrc"; then
+    echo "alias code='/mnt/c/Users/taegyun.ha/AppData/Local/Programs/Microsoft\ VS\ Code/bin/code'" >> "$REAL_HOME/.bashrc"
 fi
 
 # Setup neovim config
-[ -d ~/.config/nvim ] || git clone --depth=1 https://github.com/TaegyunHa/nvim.git ~/.config/nvim
+[ -d "$REAL_HOME/.config/nvim" ] || sudo -u "$REAL_USER" git clone --depth=1 https://github.com/TaegyunHa/nvim.git "$REAL_HOME/.config/nvim"
 
 # Setup tmux config
-[ -d ~/.config/tmux ] || git clone --depth=1 --recursive https://github.com/TaegyunHa/tmux.git ~/.config/tmux
-
-# Install zoxide
-if ! command -v zoxide &>/dev/null; then
-    echo "installing zoxide..."
-    sudo apt-get install -y zoxide
-else
-    echo "zoxide already installed, skipping."
-fi
-if ! grep -q 'zoxide init' ~/.bashrc; then
-    echo 'eval "$(zoxide init bash)"' >> ~/.bashrc
-fi
+[ -d "$REAL_HOME/.config/tmux" ] || sudo -u "$REAL_USER" git clone --depth=1 --recursive https://github.com/TaegyunHa/tmux.git "$REAL_HOME/.config/tmux"
 
 # Install claude
 if ! command -v claude &>/dev/null; then
     echo "installing claude..."
-    curl -fsSL https://claude.ai/install.sh | bash
+    sudo -u "$REAL_USER" env HOME="$REAL_HOME" bash -c 'curl -fsSL https://claude.ai/install.sh | bash'
 else
     echo "claude already installed, skipping."
 fi
